@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: data-pv
+spec:
+  capacity:
+    storage: 1Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  hostPath:
+    path: /mnt/k8s-pv-data
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data-pvc
+spec:
+  volumeName: data-pv
+  storageClassName: ""
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-exchange-pvc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: data-exchange-pvc
+
+  template:
+    metadata:
+      labels:
+        app: data-exchange-pvc
+
+    spec:
+      containers:
+
+        - name: busybox
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              while true; do
+                echo "$(date) - persistent data from busybox" >> /data/data.txt
+                sleep 5
+              done
+          volumeMounts:
+            - name: persistent-data
+              mountPath: /data
+
+        - name: multitool
+          image: wbitt/network-multitool
+          volumeMounts:
+            - name: persistent-data
+              mountPath: /data
+
+      volumes:
+        - name: persistent-data
+          persistentVolumeClaim:
+            claimName: data-pvc
